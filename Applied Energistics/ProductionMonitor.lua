@@ -3,6 +3,13 @@
 -- Version: 1.0
 -- Date: 2013/09/28
 
+snapshotInterval = 1 * 60 -- update snapshot every 1 minute
+snapshotCount = 60 * 60 / snapshotInterval -- 1 hours worth of snapshots
+prodPerHourDecimals = 1 -- Number of values after the decimal
+
+snapshotTable = {}
+prodPerHour = {}
+
 -- Functions
 function saveItemSnapshot(meBridge, itemsToMonitor)
 	local data = { timestamp = os.clock(), items = {} }
@@ -11,6 +18,37 @@ function saveItemSnapshot(meBridge, itemsToMonitor)
 		data.items[itemUUID] = items[itemUUID]
 	end
 	return data
+end
+
+function updateItemSnapshots(meBridge, itemsToMonitor)
+	if snapshotTable[#snapshotTable].timestamp < (os.clock() - snapshotInterval) then
+		-- If our table is full, remove the oldest snapshot
+		if #snapshotTable >= snapshotCount then
+			table.remove(snapshotTable, 1)
+		end
+		
+		-- Create the new snapshot and save it
+		table.insert(snapshotTable, saveItemSnapshot(meBridge, itemsToMonitor))
+		
+		calcProdPerHour(itemsToMonitor)
+	end
+end
+
+function calcProdPerHour(itemsToMonitor)
+	for itemUUID, itemName in pairs(itemsToMonitor) do
+		if #snapshotTable == 1 then
+			prodPerHour[itemUUID] = 0
+		else
+			-- Calculate items per second
+			prodPerHour[itemUUID] = (snapshotTable[#snapshotTable].items[itemUUID] - snapshotTable[1].items[itemUUID]) / (snapshotTable[#snapshotTable].timestamp - snapshotTable[1].timestamp)
+			
+			-- Update to per hour
+			prodPerHour[itemUUID] = prodPerHour[itemUUID] * 3600
+			
+			-- Round our value
+			prodPerHour[itemUUID] = math.floor((prodPerHour[itemUUID] * 10 ^ prodPerHourDecimals) + 0.5) / (10 ^ prodPerHourDecimals)
+		end
+	end
 end
 
 -------------------------------------------------------
@@ -49,15 +87,20 @@ end
 
 itemsToMonitor = CecilKilmerAPI.getItemsToMonitor(itemsToMonitorFile)
 
+-- Create our baseline snapshot
+table.insert(snapshotTable, saveItemSnapshot(meBridge, itemsToMonitor))
+calcProdPerHour(itemsToMonitor)
 
 while (true) do
 	term.clear()
 	term.setCursorPos(1, 1)
 
+	updateItemSnapshots(meBridge, itemsToMonitor)
+	
 	local items = meBridge.listItems()
 
 	for itemUUID, itemName in pairs(itemsToMonitor) do
-		print(itemName .. " - " .. items[itemUUID]);
+		print(itemName .. " - " .. items[itemUUID] .. " (" .. prodPerHour[itemUUID] .. ")");
 	end
 	os.sleep(1)
 end
