@@ -2,6 +2,7 @@
 -- Author: CecilKilmer
 -- Version: 1.0
 -- Date: 2013/09/28
+-- Todo: Fix error indexing nil value on line 20 during startup after server reboot and make a shorten number to shorten when longer than 5 digits
 
 snapshotInterval = 1 * 60 -- update snapshot every 1 minute
 snapshotCount = 60 * 60 / snapshotInterval -- 1 hours worth of snapshots
@@ -101,7 +102,7 @@ columnPos.z = screenWidth + 1
 columnPos.y = columnPos.z - 6 -- 5 wide column for average + 1 space
 
 -- Create our header divider line
-headerStr = string.rep("-", columnPos.y - 6) .. " ----- -----"
+headerStr = string.rep("-", columnPos.y - 7) .. " ----- -----"
 
 itemsToMonitor = CecilKilmerAPI.getItemsToMonitor(itemsToMonitorFile)
 
@@ -113,9 +114,9 @@ while (true) do
 	term.clear()
 	term.setCursorPos(1, 1)
 	print("Item")
-	term.setCursorPos(cursorPos.y - 5, 1)
+	term.setCursorPos(columnPos.y - 5, 1)
 	print("Qty")
-	term.setCursorPos(cursorPos.z - 5, 1)
+	term.setCursorPos(columnPos.z - 5, 1)
 	print("Avg")
 	term.setCursorPos(1, 2)
 	print(headerStr)
