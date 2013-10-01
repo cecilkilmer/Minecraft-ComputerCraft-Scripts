@@ -6,6 +6,7 @@
 snapshotInterval = 1 * 60 -- update snapshot every 1 minute
 snapshotCount = 60 * 60 / snapshotInterval -- 1 hours worth of snapshots
 prodPerHourDecimals = 1 -- Number of values after the decimal
+columnPos = vector.new(1, 1, 1)
 
 snapshotTable = {}
 prodPerHour = {}
@@ -51,6 +52,15 @@ function calcProdPerHour(itemsToMonitor)
 	end
 end
 
+function printItemLine(termRow, itemName, itemQty, itemAvg)
+	term.setCursorPos(columnPos.x, termRow)
+	print(itemName)
+	term.setCursorPos(columnPos.y - string.len(itemQty), termRow)
+	print(itemQty)
+	term.setCursorPos(columnPos.z - string.len(itemAvg), termRow)
+	print(itemAvg)
+end
+
 -------------------------------------------------------
 -- Begin main program
 -------------------------------------------------------
@@ -85,6 +95,14 @@ if monitor ~= nil then
 	term.redirect(monitor)
 end
 
+-- Figure out our column positions (2 and 3 are right justified + 1)
+screenWidth, screenHeight = term.getSize()
+columnPos.z = screenWidth + 1
+columnPos.y = columnPos.z - 6 -- 5 wide column for average + 1 space
+
+-- Create our header divider line
+headerStr = string.rep("-", columnPos.y - 6) .. " ----- -----"
+
 itemsToMonitor = CecilKilmerAPI.getItemsToMonitor(itemsToMonitorFile)
 
 -- Create our baseline snapshot
@@ -94,13 +112,22 @@ calcProdPerHour(itemsToMonitor)
 while (true) do
 	term.clear()
 	term.setCursorPos(1, 1)
-
+	print("Item")
+	term.setCursorPos(cursorPos.y - 5, 1)
+	print("Qty")
+	term.setCursorPos(cursorPos.z - 5, 1)
+	print("Avg")
+	term.setCursorPos(1, 2)
+	print(headerStr)
+	
 	updateItemSnapshots(meBridge, itemsToMonitor)
 	
 	local items = meBridge.listItems()
-
+	itemRow = 3
+	
 	for itemUUID, itemName in pairs(itemsToMonitor) do
-		print(itemName .. " - " .. items[itemUUID] .. " (" .. prodPerHour[itemUUID] .. ")");
+		printItemLine(itemRow, itemName, items[itemUUID], prodPerHour[itemUUID])
+		itemRow = itemRow + 1
 	end
 	os.sleep(1)
 end
