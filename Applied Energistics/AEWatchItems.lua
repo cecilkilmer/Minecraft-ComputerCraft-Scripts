@@ -1,8 +1,7 @@
 -- Displays player monitored items and production quantities
 -- Author: CecilKilmer
--- Version: 1.0
--- Date: 2013/09/28
--- Todo: Fix error indexing nil value on line 20 during startup after server reboot and make a shorten number to shorten when longer than 5 digits
+-- Version: 0.04
+-- Date: 2013/10/01
 
 snapshotInterval = 1 * 60 -- update snapshot every 1 minute
 snapshotCount = 60 * 60 / snapshotInterval -- 1 hours worth of snapshots
@@ -48,7 +47,7 @@ function calcProdPerHour(itemsToMonitor)
 			prodPerHour[itemUUID] = prodPerHour[itemUUID] * 3600
 			
 			-- Round our value
-			prodPerHour[itemUUID] = math.floor((prodPerHour[itemUUID] * 10 ^ prodPerHourDecimals) + 0.5) / (10 ^ prodPerHourDecimals)
+			prodPerHour[itemUUID] = CecilKilmerAPI.roundNumber(prodPerHour[itemUUID], 5, 1)
 		end
 	end
 end
@@ -56,8 +55,12 @@ end
 function printItemLine(termRow, itemName, itemQty, itemAvg)
 	term.setCursorPos(columnPos.x, termRow)
 	print(itemName)
+
+	itemQty = CecilKilmerAPI.roundNumber(itemQty, 5, 0)
 	term.setCursorPos(columnPos.y - string.len(itemQty), termRow)
 	print(itemQty)
+
+	itemAvg = CecilKilmerAPI.roundNumber(itemAvg, 5, 1)
 	term.setCursorPos(columnPos.z - string.len(itemAvg), termRow)
 	print(itemAvg)
 end
@@ -67,14 +70,24 @@ end
 -------------------------------------------------------
 
 -- Load our required APIs
+print("Attempting to load required APIs")
 if os.loadAPI("CecilKilmerAPI") == false then
-	print("Missing API.  Please download using this command:")
-	print("pastebin get BWQ8J5hT CecilKilmerAPI")
-	return
+	print("CecilKilmerAPI not found, downloading now")
+	if shell.run("pastebin", "get", "BWQ8J5hT", "CecilKilmerAPI") == false then
+		print("Missing API.  Please download using this command:")
+		print("pastebin get BWQ8J5hT CecilKilmerAPI")
+		return
+	else
+		if os.loadAPI("CecilKilmerAPI") == false then
+			print("Missing API.  Please download using this command:")
+			print("pastebin get BWQ8J5hT CecilKilmerAPI")
+			return
+		end
+	end
 end
 
 -- Check for our required data files
-itemsToMonitorFile = "ProductionMonitor.txt"
+itemsToMonitorFile = "AEWatchItems.txt"
 
 if fs.exists(itemsToMonitorFile) == false then
 	print("No items were selected to be monitored.  Please run AESelectItems.")
@@ -106,10 +119,30 @@ headerStr = string.rep("-", columnPos.y - 7) .. " ----- -----"
 
 itemsToMonitor = CecilKilmerAPI.getItemsToMonitor(itemsToMonitorFile)
 
+-- When running at startup, we may hit a condition where we load before
+-- the AE system loads, so poll for when that becomes available
+local loopCounter = 0
+local connected = false
+while (loopCounter < 60) and (connected == false) do
+	loopCounter = loopCounter + 1
+	local bridgeChecker = meBridge.listItems()
+
+	if bridgeChecker ~= nil then
+		connected = true
+	end
+	os.sleep(1)
+end
+
+if connected == false then
+	print("Unable to establish connection to AE system, quitting.")
+	return
+end
+
 -- Create our baseline snapshot
 table.insert(snapshotTable, saveItemSnapshot(meBridge, itemsToMonitor))
 calcProdPerHour(itemsToMonitor)
 
+-- Main loop
 while (true) do
 	term.clear()
 	term.setCursorPos(1, 1)
